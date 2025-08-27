@@ -1,3 +1,4 @@
+import { UsersApi } from "@/api/users/users";
 import { ErrorPage } from "@/components/Error/ErrorPage";
 import { PageLoader } from "@/components/PageLoader/PageLoader";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,9 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { NetworkLib } from "@/lib/networkLib";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { isAxiosError } from "axios";
 import {
   Building,
   Globe,
@@ -20,28 +23,41 @@ import {
   Phone,
   Target,
 } from "lucide-react";
-import { usersQueryOptions } from "../../logic/usersQuery";
 
 export const Route = createFileRoute("/$userId/")({
   component: UserDetailPage,
   loader: async ({ params, context, abortController }) => {
-    const users = await context.queryClient.ensureQueryData(
-      usersQueryOptions(abortController)
-    );
-    const selectedUser = users.find(
-      (user) => user.id === parseInt(params.userId)
-    );
-    if (!selectedUser) throw notFound();
+    const userDetail = await context.queryClient.fetchQuery({
+      queryKey: ["userDetail", params],
+      queryFn: async () => {
+        const network = NetworkLib.create({ signal: abortController.signal });
+        return await UsersApi.getUserById(network, params.userId);
+      },
+    });
 
+    if (Object.keys(userDetail).length === 0) throw notFound();
     return {
-      user: selectedUser,
+      user: userDetail,
     };
   },
   notFoundComponent: () => {
     return <ErrorPage message="user not found" />;
   },
-  errorComponent: () => {
-    return <ErrorPage message="Failed to get user" />;
+  errorComponent: ({ error }) => {
+    let errorMessage = "Failed to get user";
+    if (isAxiosError(error)) {
+      const response = error.response;
+      if (response) {
+        const { status } = response;
+        if (status === 404) {
+          errorMessage = "User not found";
+        } else if (status.toString()[0] === "5") {
+          errorMessage = "Internal server error";
+        }
+      }
+    }
+
+    return <ErrorPage message={errorMessage} />;
   },
   head: ({ loaderData, params }) => ({
     meta: [
@@ -132,10 +148,6 @@ function UserDetailPage() {
               </div>
               <div>
                 {user.address.city}, {user.address.zipcode}
-              </div>
-              <div className="flex gap-4 text-muted-foreground">
-                <span>Lat: {user.address.geo.lat}</span>
-                <span>Lng: {user.address.geo.lng}</span>
               </div>
             </div>
           </div>

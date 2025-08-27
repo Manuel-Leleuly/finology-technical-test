@@ -41,3 +41,11 @@ export type UserType = z.infer<typeof UserSchema>;
 export const UserResponseSchema = z.array(UserSchema);
 
 export type UserResponseType = z.infer<typeof UserResponseSchema>;
+
+export const UsersFilterSchema = z.object({
+  name_like: z.string().nullish(),
+  "company.name": z.string().nullish(),
+  "address.city": z.string().nullish(),
+});
+
+export type UsersFilterType = z.infer<typeof UsersFilterSchema>;
